@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Validator Akad - Data Ops</title>
+<style>
+  * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { margin: 0; background: #f4f6f9; color: #15202b; min-height: 100vh; }
+  h1, h2, h3, p { margin: 0; }
+  .muted { font-size: 12.5px; color: #7a8699; }
+  code { background: #eaf3f1; color: #04554b; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 236px; flex-shrink: 0; background: linear-gradient(180deg, #04554b, #033e36);
+    color: #fff; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+  .side-brand { display: flex; align-items: center; gap: 12px; padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .side-logo { width: 40px; height: 40px; border-radius: 11px; background: rgba(255,255,255,.14);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; }
+  .side-brand b { font-size: 15px; display: block; }
+  .side-brand span { font-size: 11.5px; opacity: .75; }
+  .side-nav { padding: 16px 12px; flex: 1; }
+  .side-link { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px;
+    color: rgba(255,255,255,.82); font-size: 14px; font-weight: 600; text-decoration: none; }
+  .side-link .ico { width: 18px; text-align: center; opacity: .8; }
+  .side-link.active { background: rgba(255,255,255,.16); color: #fff; }
+  .side-foot { padding: 16px; border-top: 1px solid rgba(255,255,255,.12); }
+  .side-user { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: #0aa68f; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 14px; }
+  .side-user b { font-size: 13px; display: block; line-height: 1.25; }
+  .side-user span { font-size: 11px; opacity: .65; display: block; overflow: hidden; text-overflow: ellipsis; }
+  .logout-btn { width: 100%; background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.25);
+    padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s ease; }
+  .logout-btn:hover { background: rgba(255,255,255,.2); }
+
+  .main { flex: 1; padding: 28px 32px 48px; min-width: 0; }
+  .page-head { margin-bottom: 22px; }
+  .page-head h1 { font-size: 22px; margin-bottom: 4px; }
+
+  .card { background: #fff; border: 1px solid #e3e8ef; border-radius: 14px; padding: 22px; margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+  .card h2 { font-size: 16px; margin: 0 0 6px; }
+  .card > p.muted { margin: 0 0 16px; }
+  .card label.font-lb { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
+  textarea.in { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 11px 13px;
+    border: 1px solid #d5dce4; border-radius: 10px; resize: vertical; }
+  textarea.in:focus { outline: 2px solid #0aa68f; border-color: transparent; }
+
+  button { background: #067d6e; color: #fff; border: 0; border-radius: 10px; padding: 10px 20px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: background .15s ease; }
+  button:hover { background: #056b5e; }
+  button:disabled { background: #9ac5bf; cursor: wait; }
+  .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .progress { font-size: 13px; color: #067d6e; font-weight: 600; }
+  .progress-box { margin-top: 16px; }
+  .bar { background: #e6ecef; border-radius: 999px; height: 10px; overflow: hidden; display: none; }
+  .bar-fill { background: linear-gradient(90deg, #067d6e, #0aa68f); height: 100%; width: 0%; border-radius: 999px; transition: width .3s ease; }
+  .bar.show { display: block; }
+  #progressText { margin-top: 8px; font-size: 13px; color: #15202b; }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 1600px; }
+  th, td { border: 1px solid #e3e8ef; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f0f4f7; position: sticky; top: 0; white-space: nowrap; }
+  td.result { font-weight: 700; }
+  .valid { color: #0a7d3f; }
+  .invalid { color: #c0392b; }
+  .reason { color: #c0392b; font-size: 12px; list-style: none; padding: 0; margin: 6px 0 0; }
+  .errors .err { background: #fdf0f0; border: 1px solid #f0c9c9; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 13px; }
+
+  .card[hidden], .errors[hidden], .progress-box[hidden] { display: none; }
+
+  .btn-view { background: #eaf3f1; color: #04554b; padding: 6px 12px; font-size: 12.5px;
+    border: 1px solid #c4dcd6; border-radius: 8px; white-space: nowrap; }
+  .btn-view:hover { background: #d6e8e4; }
+  .btn-view:disabled { background: #d6e8e4; color: #7a8699; cursor: wait; }
+  .btn-view .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid #9ac5bf;
+    border-top-color: #04554b; border-radius: 50%; margin-right: 6px; vertical-align: -1px; animation: spin 1s linear infinite; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(10,20,30,.55); z-index: 100;
+    display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .modal-overlay[hidden] { display: none; }
+  .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 980px; height: 88vh;
+    display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .modal-head { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid #e3e8ef; }
+  .modal-head b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-close { margin-left: auto; background: #f0f4f7; color: #15202b; padding: 7px 14px; font-size: 13px; }
+  .modal-close:hover { background: #e2e9ef; }
+  .modal-body { flex: 1; position: relative; background: #d8dee4; }
+  .modal-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .modal-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; color: #7a8699; font-size: 13px; background: #f4f6f9; }
+  .modal-err { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #fff; color: #c0392b; font-size: 13px; padding: 24px; }
+  .modal-body iframe[hidden] { display: none; }
+  .modal-load[hidden] { display: none; }
+  .modal-err[hidden] { display: none; }
+
+  #boot { position: fixed; inset: 0; background: #f4f6f9; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; z-index: 50; }
+  #boot .boot-logo { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #0aa68f, #04554b);
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 22px; }
+  #boot .boot-spin { width: 26px; height: 26px; border: 3px solid #cfe0dd; border-top-color: #067d6e;
+    border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #boot .muted-c { font-size: 13px; color: #7a8699; }
+  .layout[hidden] { display: none; }
+
+  #pageValidation[hidden], #pageHistory[hidden] { display: none; }
+  .hist-toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .search-box { flex: 1; min-width: 220px; padding: 9px 12px; font-size: 13px;
+    border: 1px solid #d5dce4; border-radius: 10px; }
+  .search-box:focus { outline: 2px solid #0aa68f; border-color: transparent; }
+  .btn-ghost { background: #f0f4f7; color: #15202b; border: 1px solid #d5dce4; }
+  .btn-ghost:hover { background: #e2e9ef; }
+  .btn-danger { background: #c0392b; }
+  .btn-danger:hover { background: #a93226; }
+  .btn-del-row { background: #fdf0f0; color: #c0392b; border: 1px solid #f0c9c9; padding: 5px 10px; font-size: 12px; }
+  .btn-del-row:hover { background: #f7dcdc; }
+  .pagination { display: flex; align-items: center; gap: 10px; margin-top: 14px; justify-content: flex-end; }
+  .pagination button { padding: 6px 12px; font-size: 12.5px; }
+  .pagination span { font-size: 12.5px; color: #7a8699; }
+  .empty-hint { text-align: center; color: #7a8699; padding: 28px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-logo">A</div>
+  <div class="boot-spin"></div>
+  <span class="muted-c">Memeriksa sesi…</span>
+</div>
+
+<div class="layout" id="layout" hidden>
+  <aside class="sidebar">
+    <div class="side-brand">
+      <div class="side-logo">A</div>
+      <div><b>Validator Akad</b><span>Data Ops</span></div>
+    </div>
+    <nav class="side-nav">
+      <a class="side-link active" id="navValidate" href="#"><span class="ico">&#10003;</span> Validasi Akad</a>
+      <a class="side-link" id="navHistory" href="#"><span class="ico">&#9201;</span> History</a>
+    </nav>
+    <div class="side-foot">
+      <div class="side-user">
+        <div class="avatar" id="avatar">?</div>
+        <div style="min-width:0;"><b id="userInfo">-</b><span id="userEmail"></span></div>
+      </div>
+      <button type="button" id="btnLogout" class="logout-btn">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="pageValidation">
+      <div class="page-head">
+        <h1>Validasi Akad</h1>
+      </div>
+
+      <div class="card">
+        <form id="form">
+          <label class="font-lb" for="loanIds">Loan ID</label>
+          <textarea id="loanIds" name="loanIds" rows="4" class="in" placeholder="11095629&#10;11096852&#10;11096866"></textarea>
+          <div style="margin-top:14px;" class="toolbar">
+            <button type="submit" id="btn">Validasi Akad</button>
+            <span class="progress" id="progress"></span>
+          </div>
+          <div id="progressBox" class="progress-box" hidden>
+            <div class="bar" id="bar"><div class="bar-fill" id="barFill"></div></div>
+            <div id="progressText" class="muted"></div>
+          </div>
+        </form>
+      </div>
+
+      <div class="card errors" id="errors" hidden></div>
+
+      <div class="card" id="resultCard" hidden>
+        <div class="toolbar" style="margin-bottom:12px;">
+          <h2 style="margin:0;">Hasil Validasi <span class="muted">(<span id="counts"></span>)</span></h2>
+          <button id="csvBtn" style="margin-left:auto;">Export CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table id="resultTable">
+            <thead id="resultHead"></thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="pageHistory" hidden>
+      <div class="page-head">
+        <h1>History Pengecekan</h1>
+        <p class="muted">Riwayat hasil validasi yang tersimpan di browser (IndexedDB)</p>
+      </div>
+      <div class="card">
+        <div class="hist-toolbar">
+          <input type="search" id="histSearch" class="search-box" placeholder="Cari Loan ID / file / hasil…">
+          <button type="button" id="histClear" class="btn-danger">Clear History</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead id="historyHead"></thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button type="button" id="histPrev" class="btn-ghost">&#8249; Sebelum</button>
+          <span id="histPageInfo"></span>
+          <button type="button" id="histNext" class="btn-ghost">Berikut &#8250;</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <b id="modalTitle">View Akad</b>
+      <button type="button" id="modalClose" class="modal-close">Tutup</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-load" id="modalLoad"><div class="boot-spin"></div><span id="modalLoadText">Memuat PDF…</span></div>
+      <div class="modal-err" id="modalErr" hidden></div>
+      <iframe id="modalFrame" title="Akad" hidden></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+initAuth();
+
+async function initAuth() {
+  try {
+    const r = await fetch('/api/session');
+    const s = await r.json();
+    if (!s.loggedIn) {
+      window.location.href = '/login.html';
+      return;
+    }
+    $('boot').remove();
+    $('layout').hidden = false;
+    const name = s.name || 'Pengguna';
+    $('userInfo').textContent = name;
+    $('userEmail').textContent = s.email || '';
+    $('avatar').textContent = name.trim().charAt(0).toUpperCase();
+    currentUser = name.trim();
+    currentUserEmail = (s.email || '').trim();
+    fetch('/api/config').then((r) => r.json()).then((c) => { if (c) CONFIG = c; }).catch(() => {});
+  } catch {
+    window.location.href = '/login.html';
+  }
+}
+
+$('btnLogout').addEventListener('click', async () => {
+  try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+  window.location.href = '/login.html';
+});
+
+const DEFAULT_FIELDS = [
+  { key: 'Entity', label: 'Entity' }, { key: 'TypeLoan', label: 'Type Loan' },
+  { key: 'NamaLender', label: 'Nama Lender' }, { key: 'HukumIndonesia', label: 'Hukum Indonesia' },
+  { key: 'LoanID', label: 'Loan ID' }, { key: 'Plafon', label: 'Plafon' },
+  { key: 'TanggalAkad', label: 'Tanggal Akad' }, { key: 'BagiHasil', label: 'Bagi Hasil' },
+  { key: 'RatePemberiDana', label: 'Rate Pemberi Dana' }, { key: 'RatePenyelenggara', label: 'Rate Penyelenggara' },
+  { key: 'BiayaPelayanan', label: 'Biaya Pelayanan' }, { key: 'TTDAmartha', label: 'TTD Amartha' },
+  { key: 'TTDMitra', label: 'TTD Mitra' },
+];
+
+const state = { fields: DEFAULT_FIELDS, results: [], errors: [], total: 0, done: 0, es: null, esErrs: 0 };
+
+let currentUser = '';
+let currentUserEmail = '';
+let CONFIG = { streaming: true, configured: true };
+
+function checkedByCell(doc) {
+  const name = doc?.checkedBy?.name || currentUser;
+  const email = doc?.checkedBy?.email || currentUserEmail;
+  if (!name && !email) return '-';
+  const cell = name ? `<b>${esc(name)}</b>` : '<span class="muted">-</span>';
+  return email ? `${cell}<span class="muted" style="display:block;font-size:11px;">${esc(email)}</span>` : cell;
+}
+
+function fieldRows(doc) {
+  return {
+    'Entity': doc.Entity, 'Type Loan': doc.TypeLoan, 'Nama Lender': doc.NamaLender,
+    'Hukum Indonesia': doc.HukumIndonesia, 'Loan ID': doc.LoanID, 'Plafon': doc.Plafon,
+    'Tanggal Akad': doc.TanggalAkad, 'Bagi Hasil': doc.BagiHasil,
+    'Rate Pemberi Dana': doc.RatePemberiDana, 'Rate Penyelenggara': doc.RatePenyelenggara,
+    'Biaya Pelayanan': doc.BiayaPelayanan, 'TTD Amartha': doc.TTDAmartha, 'TTD Mitra': doc.TTDMitra,
+  };
+}
+
+function renderHead() {
+  $('resultHead').innerHTML = '<tr><th>File</th>' + state.fields.map(f => `<th>${esc(f.label)}</th>`).join('') + '<th>Tanggal Cek</th><th>Oleh</th><th>Result</th><th>Akad</th></tr>';
+}
+
+function checkedAtLabel() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function appendRow(doc) {
+  const row = fieldRows(doc.raw);
+  const cls = doc.result === 'Valid' ? 'valid' : 'invalid';
+  const reasons = (doc.reasons || []).map(r => `<li class="reason">- ${esc(r)}</li>`).join('') || '';
+  doc.checkedAt = checkedAtLabel();
+  doc.checkedBy = { name: currentUser, email: currentUserEmail };
+  const action = doc.loanId
+    ? `<button type="button" class="btn-view" data-loan="${esc(String(doc.loanId))}" data-name="${esc(doc.filename)}">View Akad</button>`
+    : '-';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+      <td><b>${esc(doc.filename)}</b></td>
+      ${state.fields.map(f => `<td>${esc(row[f.label] || '-')}</td>`).join('')}
+      <td class="muted" style="white-space:nowrap;">${esc(doc.checkedAt)}</td>
+      <td>${checkedByCell(doc)}</td>
+      <td class="result ${cls}">${esc(doc.result)}${reasons ? `<ul>${reasons}</ul>` : ''}</td>
+      <td>${action}</td>`;
+  $('resultBody').appendChild(tr);
+  $('resultCard').hidden = false;
+  state.results.push(doc);
+  updateCounts();
+  dbAdd({
+    createdAt: Date.now(),
+    checkedAt: doc.checkedAt,
+    checkedBy: doc.checkedBy,
+    filename: doc.filename,
+    loanId: doc.loanId || null,
+    raw: doc.raw,
+    result: doc.result,
+    reasons: doc.reasons || [],
+  }).catch(() => {});
+}
+
+function addError(err) {
+  state.errors.push(err);
+  const errBox = $('errors');
+  const div = document.createElement('div');
+  div.className = 'err';
+  div.textContent = `${err.filename}: ${err.message}`;
+  errBox.appendChild(div);
+  $('resultCard').hidden = false;
+  errBox.hidden = false;
+}
+
+function updateCounts() {
+  const valid = state.results.filter(r => r.result === 'Valid').length;
+  $('counts').textContent = `${valid} Valid / ${state.results.length} Total`;
+}
+
+function setProgress(index, total, filename, stage) {
+  const pct = Math.round((index / total) * 100);
+  $('barFill').style.width = `${pct}%`;
+  const parts = [];
+  if (filename) parts.push(`<b>${esc(filename)}</b>`);
+  if (stage) parts.push(esc(stage));
+  $('progressText').innerHTML = `[${index}/${total}] ${parts.join(' — ')}`;
+}
+
+function showProgress() {
+  state.done = 0;
+  $('progressBox').hidden = false;
+  $('bar').classList.add('show');
+  $('barFill').style.width = '0%';
+}
+
+function hideProgress() {
+  $('progressBox').hidden = true;
+  $('bar').classList.remove('show');
+  $('barFill').style.width = '0%';
+  $('progressText').textContent = '';
+  $('progress').textContent = '';
+}
+
+function closeStream() {
+  if (state.es) {
+    state.es.close();
+    state.es = null;
+  }
+}
+
+function resetResults() {
+  state.results = [];
+  state.errors = [];
+  $('resultBody').innerHTML = '';
+  $('errors').innerHTML = '';
+  $('errors').hidden = true;
+  $('resultCard').hidden = true;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function setViewBusy(btn, busy) {
+  if (!btn) return;
+  if (busy) {
+    btn.dataset.label = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Memuat…';
+  } else {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.label || 'View Akad';
+  }
+}
+
+function hideModal() {
+  $('modal').hidden = true;
+  $('modalErr').hidden = true;
+  const frame = $('modalFrame');
+  frame.onload = null;
+  if (frame.src) {
+    URL.revokeObjectURL(frame.src);
+    frame.removeAttribute('src');
+  }
+  frame.hidden = true;
+  $('modalLoad').hidden = false;
+}
+
+$('modalClose').addEventListener('click', hideModal);
+$('modal').addEventListener('click', (e) => { if (e.target === $('modal')) hideModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideModal(); });
+
+async function viewAkad(btn, loanId, filename) {
+  setViewBusy(btn, true);
+  let url = null;
+  try {
+    const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/akad/file`);
+    if (!res.ok) {
+      let msg = `Gagal memuat file akad (HTTP ${res.status})`;
+      try { const j = await res.json(); if (j && j.message) msg = j.message; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    url = URL.createObjectURL(blob);
+  } catch (err) {
+    addError({ filename: `Akad ${loanId}`, message: err.message });
+    setViewBusy(btn, false);
+    return;
+  }
+
+  $('modalTitle').textContent = `Akad - Loan ${loanId}`;
+  $('modalErr').hidden = true;
+  $('modalLoad').hidden = false;
+  $('modalLoadText').textContent = 'Memuat PDF…';
+  $('modalFrame').hidden = true;
+  $('modalFrame').src = url;
+  $('modalFrame').onload = () => {
+    $('modalLoad').hidden = true;
+    $('modalFrame').hidden = false;
+  };
+  setTimeout(() => {
+    if (!$('modalFrame').hidden) {
+      $('modalLoad').hidden = true;
+      $('modalFrame').hidden = false;
+    }
+  }, 8000);
+  $('modal').hidden = false;
+  setViewBusy(btn, false);
+}
+
+$('resultBody').addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-view');
+  if (!btn || btn.disabled) return;
+  viewAkad(btn, btn.dataset.loan, btn.dataset.name);
+});
+
+async function startJob(payload, endpoint, btn, headers = {}) {
+  closeStream();
+  resetResults();
+  btn.disabled = true;
+  $('progress').textContent = 'Mengirim...';
+  showProgress();
+
+  try {
+    const res = await fetch(endpoint, { method: 'POST', body: payload, headers });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.message);
+
+    if (!CONFIG.streaming || !data.jobId) {
+      state.fields = data.fields || state.fields;
+      renderHead();
+      for (const r of data.results || []) appendRow(r);
+      for (const e of data.errors || []) addError(e);
+      $('barFill').style.width = '100%';
+      $('progressText').textContent = 'Selesai.';
+      btn.disabled = false;
+      $('progress').textContent = '';
+      return;
+    }
+
+    state.fields = data.fields;
+    renderHead();
+
+    state.es = new EventSource(`/api/jobs/${data.jobId}/stream`);
+
+    state.es.onmessage = (msg) => {
+      const evt = JSON.parse(msg.data);
+      state.esErrs = 0;
+
+      switch (evt.type) {
+        case 'start': {
+          state.total = evt.total;
+          setProgress(0, evt.total, null, 'Mulai memproses...');
+          break;
+        }
+        case 'file-start': {
+          state.done = evt.index;
+          setProgress(evt.index, evt.total, evt.filename, evt.stage);
+          break;
+        }
+        case 'file-done': {
+          state.done = evt.index + 1;
+          appendRow(evt.result);
+          setProgress(state.done, evt.total, evt.filename, 'Selesai');
+          break;
+        }
+        case 'file-error': {
+          state.done = evt.index + 1;
+          addError(evt.error);
+          setProgress(state.done, evt.total, evt.filename, 'Gagal');
+          break;
+        }
+        case 'fatal': {
+          addError({ filename: '-', message: evt.message });
+          break;
+        }
+        case 'done': {
+          $('barFill').style.width = '100%';
+          $('progressText').textContent = 'Selesai.';
+          btn.disabled = false;
+          closeStream();
+          break;
+        }
+      }
+    };
+
+    state.es.onerror = () => {
+      state.esErrs++;
+      if (state.esErrs > 5) {
+        closeStream();
+        hideProgress();
+        btn.disabled = false;
+        addError({ filename: '-', message: 'Koneksi progress terputus. Periksa server / coba lagi.' });
+      }
+    };
+
+    $('progress').textContent = '';
+  } catch (err) {
+    btn.disabled = false;
+    hideProgress();
+    const errBox = $('errors');
+    errBox.innerHTML = `<div class="err">${esc(err.message)}</div>`;
+    errBox.hidden = false;
+  }
+}
+
+$('form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const ids = $('loanIds').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!ids.length) return;
+  const payload = JSON.stringify({ loanIds: ids });
+  startJob(payload, '/api/extract-loan', $('btn'), { 'Content-Type': 'application/json' });
+});
+
+$('csvBtn').addEventListener('click', () => {
+  const csv = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const cols = ['File', ...state.fields.map(f => f.label), 'Tanggal Cek', 'Pengecek', 'Result'];
+  const rows = [cols.join(',')];
+  for (const r of state.results) {
+    const row = fieldRows(r.raw);
+    const who = r.checkedBy ? [r.checkedBy.name, r.checkedBy.email].filter(Boolean).join(' · ') : '';
+    rows.push([r.filename, ...state.fields.map(f => row[f.label] || '-'), r.checkedAt || '', who, r.result].map(csv).join(','));
+  }
+  const blob = new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hasil_validasi_akad.csv';
+  a.click();
+});
+
+// ---------- IndexedDB (History) ----------
+const DB_NAME = 'akad-validator';
+const DB_STORE = 'history';
+let _dbPromise = null;
+
+function openDb() {
+  if (!_dbPromise) {
+    _dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) {
+          db.createObjectStore(DB_STORE, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  return _dbPromise;
+}
+
+async function txStore(mode) {
+  const db = await openDb();
+  const tx = db.transaction(DB_STORE, mode);
+  return { tx, store: tx.objectStore(DB_STORE) };
+}
+
+async function dbAdd(rec) {
+  const { tx, store } = await txStore('readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.add(rec);
+    req.onsuccess = () => { tx.oncomplete = () => resolve(req.result); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbGetAll() {
+  const { tx, store } = await txStore('readonly');
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbDelete(id) {
+  const { tx, store } = await txStore('readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => { tx.oncomplete = () => resolve(); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbClear() {
+  const { tx, store } = await txStore('readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.clear();
+    req.onsuccess = () => { tx.oncomplete = () => resolve(); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ---------- Nav ----------
+function showPage(name) {
+  const isVal = name === 'validation';
+  $('pageValidation').hidden = !isVal;
+  $('pageHistory').hidden = isVal;
+  $('navValidate').classList.toggle('active', isVal);
+  $('navHistory').classList.toggle('active', !isVal);
+  if (!isVal) loadHistory();
+  window.scrollTo({ top: 0 });
+}
+
+$('navValidate').addEventListener('click', (e) => { e.preventDefault(); showPage('validation'); });
+$('navHistory').addEventListener('click', (e) => { e.preventDefault(); showPage('history'); });
+
+// ---------- History ----------
+const hist = { items: [], search: '', page: 1, size: 20 };
+
+function histFiltered() {
+  const q = hist.search.trim().toLowerCase();
+  if (!q) return hist.items;
+  return hist.items.filter((it) => {
+    const raw = it.raw || {};
+    const hay = [it.filename, it.loanId, it.result, it.checkedAt, it.checkedBy?.name, it.checkedBy?.email, ...Object.values(raw)].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function renderHistory() {
+  const items = histFiltered();
+  const totalPages = Math.max(1, Math.ceil(items.length / hist.size));
+  if (hist.page > totalPages) hist.page = totalPages;
+  const start = (hist.page - 1) * hist.size;
+  const pageItems = items.slice(start, start + hist.size);
+
+  $('historyHead').innerHTML = '<tr><th>File</th>' + state.fields.map(f => `<th>${esc(f.label)}</th>`).join('') + '<th>Tanggal Cek</th><th>Oleh</th><th>Result</th><th>Akad</th><th></th></tr>';
+
+  const tbody = $('historyBody');
+  tbody.innerHTML = '';
+  if (!pageItems.length) {
+    const colspan = state.fields.length + 6;
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-hint">${hist.items.length ? 'Tidak ada hasil yang cocok.' : 'Belum ada history. Lakukan validasi akad terlebih dahulu.'}</td></tr>`;
+    $('histPageInfo').textContent = `0 data`;
+    $('histPrev').disabled = true;
+    $('histNext').disabled = true;
+    return;
+  }
+
+  for (const it of pageItems) {
+    const row = fieldRows(it.raw);
+    const cls = it.result === 'Valid' ? 'valid' : 'invalid';
+    const reasons = (it.reasons || []).map(r => `<li class="reason">- ${esc(r)}</li>`).join('') || '';
+    const action = it.loanId
+      ? `<button type="button" class="btn-view" data-loan="${esc(String(it.loanId))}" data-name="${esc(it.filename)}">View Akad</button>`
+      : '-';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>${esc(it.filename)}</b></td>
+      ${state.fields.map(f => `<td>${esc(row[f.label] || '-')}</td>`).join('')}
+      <td class="muted" style="white-space:nowrap;">${esc(it.checkedAt || '')}</td>
+      <td>${checkedByCell(it)}</td>
+      <td class="result ${cls}">${esc(it.result)}${reasons ? `<ul>${reasons}</ul>` : ''}</td>
+      <td>${action}</td>
+      <td><button type="button" class="btn-del-row" data-id="${it.id}">Hapus</button></td>`;
+    tbody.appendChild(tr);
+  }
+
+  $('histPageInfo').textContent = `Hal ${hist.page}/${totalPages} · ${items.length} data`;
+  $('histPrev').disabled = hist.page <= 1;
+  $('histNext').disabled = hist.page >= totalPages;
+}
+
+async function loadHistory() {
+  try {
+    hist.items = (await dbGetAll()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  } catch {
+    hist.items = [];
+  }
+  hist.page = 1;
+  renderHistory();
+}
+
+$('histSearch').addEventListener('input', (e) => {
+  hist.search = e.target.value;
+  hist.page = 1;
+  renderHistory();
+});
+
+$('histPrev').addEventListener('click', () => {
+  if (hist.page > 1) { hist.page--; renderHistory(); }
+});
+
+$('histNext').addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(histFiltered().length / hist.size));
+  if (hist.page < totalPages) { hist.page++; renderHistory(); }
+});
+
+$('historyBody').addEventListener('click', (e) => {
+  const view = e.target.closest('.btn-view');
+  if (view && !view.disabled) {
+    viewAkad(view, view.dataset.loan, view.dataset.name);
+    return;
+  }
+  const del = e.target.closest('.btn-del-row');
+  if (del) {
+    const id = Number(del.dataset.id);
+    dbDelete(id).then(() => {
+      hist.items = hist.items.filter((it) => it.id !== id);
+      renderHistory();
+    }).catch(() => {});
+  }
+});
+
+$('histClear').addEventListener('click', async () => {
+  if (!hist.items.length) return;
+  if (!confirm('Hapus semua history? Tindakan ini tidak dapat dibatalkan.')) return;
+  await dbClear().catch(() => {});
+  hist.items = [];
+  renderHistory();
+});
+</script>
+</body>
+</html>

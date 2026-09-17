@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Validator Akad - Masuk</title>
+<style>
+  * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(1200px 600px at 20% -10%, #0a8a78 0%, #04554b 55%, #023a33 100%); padding: 24px; }
+  h1, h2, h3, p { margin: 0; }
+  .muted { font-size: 12.5px; color: #7a8699; }
+  .login-card { background: #fff; border-radius: 16px; padding: 40px 36px; width: 100%; max-width: 440px;
+    box-shadow: 0 30px 60px rgba(0,0,0,.25); }
+  .login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .login-logo { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #0aa68f, #04554b);
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; }
+  .login-brand b { font-size: 17px; display: block; }
+  .login-brand span { font-size: 12px; color: #7a8699; }
+  .login-card h2 { margin: 0 0 6px; font-size: 22px; }
+  .login-card p.muted { margin: 0 0 20px; }
+  .login-card label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
+  .login-card input { width: 100%; padding: 12px 14px; font-family: ui-monospace, Menlo, monospace; font-size: 13px;
+    border: 1px solid #d5dce4; border-radius: 10px; }
+  .login-card input:focus { outline: 2px solid #0aa68f; border-color: transparent; }
+  .login-btn { width: 100%; margin-top: 16px; padding: 13px; font-size: 15px; background: #067d6e; color: #fff;
+    border: 0; border-radius: 10px; font-weight: 600; cursor: pointer; transition: background .15s ease; }
+  .login-btn:hover { background: #056b5e; }
+  .login-btn:disabled { background: #9ac5bf; cursor: wait; }
+  .login-msg { display: block; margin-top: 12px; font-size: 13px; min-height: 18px; color: #067d6e; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="login-brand">
+    <div class="login-logo">A</div>
+    <div><b>Validator Dokumen Akad</b><span>Data Ops</span></div>
+  </div>
+  <h2>Masuk</h2>
+  <p class="muted">Tempel token Anda. Token diverifikasi ke server; respons 200 = berhasil, 401 = ditolak.</p>
+  <label for="loginToken">Bearer Token</label>
+  <input type="text" id="loginToken" name="token" autocomplete="off" placeholder="eyJhbGciOiJSUzI1NiIs..." spellcheck="false">
+  <button type="button" id="btnLogin" class="login-btn">Masuk</button>
+  <span class="login-msg" id="loginMsg"></span>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function doLogin() {
+  const token = $('loginToken').value.trim();
+  if (!token) {
+    $('loginMsg').textContent = 'Token belum diisi.';
+    return;
+  }
+  $('btnLogin').disabled = true;
+  $('loginMsg').textContent = 'Memverifikasi token...';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.message);
+    window.location.href = '/';
+  } catch (e) {
+    $('loginMsg').textContent = 'Login gagal: ' + e.message;
+    $('btnLogin').disabled = false;
+  }
+}
+
+$('btnLogin').addEventListener('click', doLogin);
+$('loginToken').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>
