@@ -10,14 +10,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const API_KEYS = [
+  ...String(process.env.AI_API_KEY || '').split(',').map((k) => k.trim()).filter(Boolean),
   ...String(process.env.GEMINI_API_KEYS || '').split(',').map((k) => k.trim()).filter(Boolean),
   ...String(process.env.GEMINI_API_KEY || '').split(',').map((k) => k.trim()).filter(Boolean),
 ];
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const MODEL = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'combo-akad';
 const GATEWAY = process.env.AMARTHA_GATEWAY || '';
 const LOAN_QUERY_URL = process.env.AMARTHA_QUERY_URL || '';
 const MAX_FILES = parseInt(process.env.MAX_FILES || '20', 10);
 const MAX_SIZE_MB = parseInt(process.env.MAX_SIZE_MB || '15', 10);
+const CONCURRENCY = parseInt(process.env.CONCURRENCY || '5', 10);
 
 const ON_VERCEL = !!process.env.VERCEL;
 const SYNC_ONLY = ON_VERCEL || String(process.env.SYNC_ONLY || '') === '1';
@@ -200,11 +202,11 @@ export function buildApp() {
   async function processJob(job) {
     emit(job, { type: 'start', total: job.tasks.length });
 
-    for (const [index, task] of job.tasks.entries()) {
+    const processTask = async ([index, task]) => {
       let filename = task.name;
       const stage = task.resolve
         ? 'Mengambil file Akad dari file storage Amartha...'
-        : 'Ekstraksi data dengan Gemini...';
+        : 'Ekstraksi data dengan AI...';
       emit(job, {
         type: 'file-start',
         index,
@@ -229,6 +231,13 @@ export function buildApp() {
         job.errors.push(err);
         emit(job, { type: 'file-error', index, total: job.tasks.length, filename, error: err });
       }
+    };
+
+    const entries = [...job.tasks.entries()];
+    const concurrency = CONCURRENCY;
+    for (let i = 0; i < entries.length; i += concurrency) {
+      const batch = entries.slice(i, i + concurrency);
+      await Promise.all(batch.map(processTask));
     }
 
     job.done = true;
@@ -254,7 +263,7 @@ export function buildApp() {
 
   app.post('/api/extract', upload.array('files'), async (req, res) => {
     if (API_KEYS.length === 0) {
-      return fail(res, 400, 'GEMINI_API_KEY / GEMINI_API_KEYS belum diatur. Set variabel lingkungan lalu restart server.');
+      return fail(res, 400, 'AI_API_KEY belum diatur. Set variabel lingkungan lalu restart server.');
     }
 
     const files = req.files || [];
@@ -283,7 +292,7 @@ export function buildApp() {
 
   app.post('/api/extract-remote', async (req, res) => {
     if (API_KEYS.length === 0) {
-      return fail(res, 400, 'GEMINI_API_KEY / GEMINI_API_KEYS belum diatur. Set variabel lingkungan lalu restart server.');
+      return fail(res, 400, 'AI_API_KEY belum diatur. Set variabel lingkungan lalu restart server.');
     }
 
     const { token, files } = req.body || {};
@@ -316,7 +325,7 @@ export function buildApp() {
 
   app.post('/api/extract-loan', async (req, res) => {
     if (API_KEYS.length === 0) {
-      return fail(res, 400, 'GEMINI_API_KEY / GEMINI_API_KEYS belum diatur. Set variabel lingkungan lalu restart server.');
+      return fail(res, 400, 'AI_API_KEY belum diatur. Set variabel lingkungan lalu restart server.');
     }
 
     const { loanIds } = req.body || {};
@@ -432,6 +441,6 @@ if (isDirectRun) {
   const app = buildApp();
   app.listen(PORT, () => {
     console.log(`[SERVER] Web app aktif di http://localhost:${PORT}`);
-    console.log(`[SERVER] Model Gemini : ${MODEL}${API_KEYS.length ? ` | ${API_KEYS.length} API key terpasang` : ' (API key belum diatur!)'}`);
+    console.log(`[SERVER] AI Model: ${MODEL}${API_KEYS.length ? ` | ${API_KEYS.length} API key terpasang` : ' (API key belum diatur!)'}`);
   });
 }

@@ -162,6 +162,7 @@
         <form id="form">
           <label class="font-lb" for="loanIds">Loan ID</label>
           <textarea id="loanIds" name="loanIds" rows="4" class="in" placeholder="11095629&#10;11096852&#10;11096866"></textarea>
+          <p class="muted" style="margin-top:8px;">Diproses satu per satu ke Gemini — hasil tiap loan langsung tampil di tabel.</p>
           <div style="margin-top:14px;" class="toolbar">
             <button type="submit" id="btn">Validasi Akad</button>
             <span class="progress" id="progress"></span>
@@ -250,7 +251,6 @@ async function initAuth() {
     $('avatar').textContent = name.trim().charAt(0).toUpperCase();
     currentUser = name.trim();
     currentUserEmail = (s.email || '').trim();
-    fetch('/api/config').then((r) => r.json()).then((c) => { if (c) CONFIG = c; }).catch(() => {});
   } catch {
     window.location.href = '/login.html';
   }
@@ -271,11 +271,10 @@ const DEFAULT_FIELDS = [
   { key: 'TTDMitra', label: 'TTD Mitra' },
 ];
 
-const state = { fields: DEFAULT_FIELDS, results: [], errors: [], total: 0, done: 0, es: null, esErrs: 0 };
+const state = { fields: DEFAULT_FIELDS, results: [], errors: [] };
 
 let currentUser = '';
 let currentUserEmail = '';
-let CONFIG = { streaming: true, configured: true };
 
 function checkedByCell(doc) {
   const name = doc?.checkedBy?.name || currentUser;
@@ -364,25 +363,9 @@ function setProgress(index, total, filename, stage) {
 }
 
 function showProgress() {
-  state.done = 0;
   $('progressBox').hidden = false;
   $('bar').classList.add('show');
   $('barFill').style.width = '0%';
-}
-
-function hideProgress() {
-  $('progressBox').hidden = true;
-  $('bar').classList.remove('show');
-  $('barFill').style.width = '0%';
-  $('progressText').textContent = '';
-  $('progress').textContent = '';
-}
-
-function closeStream() {
-  if (state.es) {
-    state.es.close();
-    state.es = null;
-  }
 }
 
 function resetResults() {
@@ -471,102 +454,74 @@ $('resultBody').addEventListener('click', (e) => {
   viewAkad(btn, btn.dataset.loan, btn.dataset.name);
 });
 
-async function startJob(payload, endpoint, btn, headers = {}) {
-  closeStream();
+// Kirim 1 loan per request, berurutan. Baris tabel langsung muncul begitu 1 loan selesai.
+const LOAN_TIMEOUT_MS = 150000;
+
+async function checkLoan(loanId) {
+  const res = await fetch('/api/extract-loan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ loanIds: [loanId], sync: true }),
+    signal: AbortSignal.timeout(LOAN_TIMEOUT_MS),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) throw new Error(data.message || `Gagal memproses (HTTP ${res.status}).`);
+
+  if (Array.isArray(data.fields) && data.fields.length) {
+    state.fields = data.fields;
+    renderHead();
+  }
+
+  const results = data.results || [];
+  const errors = data.errors || [];
+  for (const r of results) appendRow(r);
+  for (const err of errors) addError(err);
+  if (results.length === 0 && errors.length === 0) {
+    addError({ filename: `Loan ${loanId}`, message: 'Server tidak mengembalikan hasil.' });
+  }
+  return results.length;
+}
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ids = [...new Set($('loanIds').value.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))];
+  if (!ids.length) return;
+
+  const btn = $('btn');
   resetResults();
   btn.disabled = true;
   $('progress').textContent = 'Mengirim...';
   showProgress();
+  setProgress(0, ids.length, null, 'Menyiapkan...');
 
-  try {
-    const res = await fetch(endpoint, { method: 'POST', body: payload, headers });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.message);
+  const CONCURRENCY = 4;
+  let completed = 0;
 
-    if (!CONFIG.streaming || !data.jobId) {
-      state.fields = data.fields || state.fields;
-      renderHead();
-      for (const r of data.results || []) appendRow(r);
-      for (const e of data.errors || []) addError(e);
-      $('barFill').style.width = '100%';
-      $('progressText').textContent = 'Selesai.';
-      btn.disabled = false;
-      $('progress').textContent = '';
-      return;
+  async function runTask(loanId) {
+    setProgress(completed, ids.length, `Loan ${loanId}`, 'Memproses AI...');
+    try {
+      await checkLoan(loanId);
+      completed++;
+      setProgress(completed, ids.length, `Loan ${loanId}`, 'Selesai');
+    } catch (err) {
+      completed++;
+      const msg = err && err.name === 'TimeoutError'
+        ? `Timeout ${Math.round(LOAN_TIMEOUT_MS / 1000)} detik, dilewati.`
+        : err.message;
+      addError({ filename: `Loan ${loanId}`, message: msg });
+      setProgress(completed, ids.length, `Loan ${loanId}`, 'Gagal');
     }
-
-    state.fields = data.fields;
-    renderHead();
-
-    state.es = new EventSource(`/api/jobs/${data.jobId}/stream`);
-
-    state.es.onmessage = (msg) => {
-      const evt = JSON.parse(msg.data);
-      state.esErrs = 0;
-
-      switch (evt.type) {
-        case 'start': {
-          state.total = evt.total;
-          setProgress(0, evt.total, null, 'Mulai memproses...');
-          break;
-        }
-        case 'file-start': {
-          state.done = evt.index;
-          setProgress(evt.index, evt.total, evt.filename, evt.stage);
-          break;
-        }
-        case 'file-done': {
-          state.done = evt.index + 1;
-          appendRow(evt.result);
-          setProgress(state.done, evt.total, evt.filename, 'Selesai');
-          break;
-        }
-        case 'file-error': {
-          state.done = evt.index + 1;
-          addError(evt.error);
-          setProgress(state.done, evt.total, evt.filename, 'Gagal');
-          break;
-        }
-        case 'fatal': {
-          addError({ filename: '-', message: evt.message });
-          break;
-        }
-        case 'done': {
-          $('barFill').style.width = '100%';
-          $('progressText').textContent = 'Selesai.';
-          btn.disabled = false;
-          closeStream();
-          break;
-        }
-      }
-    };
-
-    state.es.onerror = () => {
-      state.esErrs++;
-      if (state.esErrs > 5) {
-        closeStream();
-        hideProgress();
-        btn.disabled = false;
-        addError({ filename: '-', message: 'Koneksi progress terputus. Periksa server / coba lagi.' });
-      }
-    };
-
-    $('progress').textContent = '';
-  } catch (err) {
-    btn.disabled = false;
-    hideProgress();
-    const errBox = $('errors');
-    errBox.innerHTML = `<div class="err">${esc(err.message)}</div>`;
-    errBox.hidden = false;
   }
-}
 
-$('form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const ids = $('loanIds').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!ids.length) return;
-  const payload = JSON.stringify({ loanIds: ids });
-  startJob(payload, '/api/extract-loan', $('btn'), { 'Content-Type': 'application/json' });
+  for (let i = 0; i < ids.length; i += CONCURRENCY) {
+    const chunk = ids.slice(i, i + CONCURRENCY);
+    await Promise.all(chunk.map(runTask));
+  }
+
+  $('barFill').style.width = '100%';
+  $('progressText').textContent = 'Selesai.';
+  $('progress').textContent = '';
+  btn.disabled = false;
 });
 
 $('csvBtn').addEventListener('click', () => {

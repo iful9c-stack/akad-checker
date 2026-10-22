@@ -32,5 +32,5 @@ Buka `http://localhost:3000`.
 
 Catatan serverless:
 - Di Vercel sesi dibuat **stateless** — token langsung disimpan di cookie `akadSession` (HttpOnly, Secure).
-- Mode **sinkron** dipakai otomatis (`SYNC_ONLY`), sehingga tidak ada SSE/job in-memory.
-- Batas durasi fungsi berlaku; gunakan batch Loan ID secukupnya.
+- Frontend mengirim **1 Loan ID per request** (berurutan, `sync: true`), jadi tidak ada SSE/job in-memory dan tidak terkena batas durasi fungsi.
+- Karena hasil per loan dikirim balik terpisah, baris tabel langsung muncul begitu 1 loan selesai — tidak perlu menunggu semua loan.
