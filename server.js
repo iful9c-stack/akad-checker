@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { extractFromPdf, FIELDS } from './lib/extractor.js';
@@ -8,15 +9,40 @@ import { fetchPdfFromAmartha, fileNameFromPath, extractFilePath, fetchLoanDetail
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const API_KEYS = [
-  ...String(process.env.AI_API_KEY || '').split(',').map((k) => k.trim()).filter(Boolean),
-  ...String(process.env.GEMINI_API_KEYS || '').split(',').map((k) => k.trim()).filter(Boolean),
-  ...String(process.env.GEMINI_API_KEY || '').split(',').map((k) => k.trim()).filter(Boolean),
-];
-const MODEL = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'combo-akad';
-const GATEWAY = process.env.AMARTHA_GATEWAY || '';
-const LOAN_QUERY_URL = process.env.AMARTHA_QUERY_URL || '';
+// Auto-load .env jika belum ter-load (misal di Vercel serverless)
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  try {
+    const raw = fs.readFileSync(envPath, 'utf8');
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const idx = trimmed.indexOf('=');
+      if (idx > 0) {
+        const key = trimmed.slice(0, idx).trim();
+        const val = trimmed.slice(idx + 1).trim();
+        if (!process.env[key]) process.env[key] = val;
+      }
+    }
+  } catch {}
+}
+
+const DEFAULT_AI_KEY = 'sk-009776894202163a-1lh99d-40d458b2';
+const DEFAULT_AI_BASE = 'http://77.237.238.127:20128/v1';
+const DEFAULT_AI_MODEL = 'ag/gemini-3-flash';
+
+const PORT = parseInt(process.env.PORT || '3200', 10);
+const rawKeys = [
+  ...String(process.env.AI_API_KEY || '').split(','),
+  ...String(process.env.GEMINI_API_KEYS || '').split(','),
+  ...String(process.env.GEMINI_API_KEY || '').split(','),
+].map((k) => k.trim()).filter(Boolean);
+
+const API_KEYS = rawKeys.length > 0 ? rawKeys : [DEFAULT_AI_KEY];
+const MODEL = process.env.AI_MODEL || DEFAULT_AI_MODEL;
+const GATEWAY = process.env.AMARTHA_GATEWAY || 'https://api-gw-krakend.amartha.id/file-storage/v1/new-signed-url';
+const LOAN_QUERY_URL = process.env.AMARTHA_QUERY_URL || 'https://api-gw-krakend.amartha.id/loan-state-machine/v2/api/loans/query';
+const LOAN_BASE = process.env.AMARTHA_LOAN_BASE || 'https://api-gw-krakend.amartha.id/loan-state-machine/v2/api/loans';
 const MAX_FILES = parseInt(process.env.MAX_FILES || '20', 10);
 const MAX_SIZE_MB = parseInt(process.env.MAX_SIZE_MB || '15', 10);
 const CONCURRENCY = parseInt(process.env.CONCURRENCY || '5', 10);
@@ -344,7 +370,7 @@ export function buildApp() {
       name: `Loan ${id}`,
       loanId: id,
       resolve: async () => {
-        const { status, json } = await fetchLoanDetail({ loanId: id, token, base: process.env.AMARTHA_LOAN_BASE });
+        const { status, json } = await fetchLoanDetail({ loanId: id, token, base: LOAN_BASE });
         if (status !== 200 || !json || !json.data) {
           const msg = json && json.message ? String(json.message) : '';
           throw new Error(`Loan ${id} gagal dimuat (status ${status})${msg ? `: ${msg}` : '.'}`);
@@ -381,7 +407,7 @@ export function buildApp() {
     if (!requireGateway(res)) return;
 
     try {
-      const { status, json } = await fetchLoanDetail({ loanId, token, base: process.env.AMARTHA_LOAN_BASE });
+      const { status, json } = await fetchLoanDetail({ loanId, token, base: LOAN_BASE });
       if (status !== 200 || !json || !json.data) {
         const msg = json && json.message ? String(json.message) : '';
         return fail(res, 502, `Loan ${loanId} gagal dimuat (status ${status})${msg ? `: ${msg}` : '.'}`);
